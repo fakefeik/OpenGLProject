@@ -8,6 +8,12 @@ TODO:
 ---
 
 * Create blank project following one of [these](https://github.com/fakefeik/OpenGLProject#Tutorials) tutorials
+* Make custom model loading
+* Implement shading
+* Add textures
+* ...
+* Make a game
+* Profit!
 
 Tutorials
 ---
