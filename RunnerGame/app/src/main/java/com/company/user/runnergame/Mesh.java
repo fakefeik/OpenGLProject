@@ -193,6 +193,16 @@ public class Mesh {
         GLES20.glDrawElements(GLES20.GL_TRIANGLES, indicesCount, GLES20.GL_UNSIGNED_SHORT, indicesBuffer);
     }
 
+    public void drawWireframe(int mPositionHandle, int mMVPMatrixHandle, float[] mMVPMatrix, float[] mViewMatrix, float[]mModelMatrix, float[] mProjectionMatrix) {
+        GLES20.glEnableVertexAttribArray(mPositionHandle);
+        GLES20.glVertexAttribPointer(mPositionHandle, 3, GLES20.GL_FLOAT, false,
+                12, verticesBuffer);
+        Matrix.multiplyMM(mMVPMatrix, 0, mViewMatrix, 0, mModelMatrix, 0);
+        Matrix.multiplyMM(mMVPMatrix, 0, mProjectionMatrix, 0, mMVPMatrix, 0);
+        GLES20.glUniformMatrix4fv(mMVPMatrixHandle, 1, false, mMVPMatrix, 0);
+        GLES20.glDrawElements(GLES20.GL_LINES, lineIndicesCount, GLES20.GL_UNSIGNED_SHORT, linesBuffer);
+    }
+
 //    public void drawWireframe(GL10 gl) {
 //        gl.glEnableClientState(GL10.GL_VERTEX_ARRAY);
 //        gl.glVertexPointer(3, GL10.GL_FLOAT, 0, verticesBuffer);

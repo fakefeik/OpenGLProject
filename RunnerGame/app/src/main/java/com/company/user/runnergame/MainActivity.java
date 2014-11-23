@@ -185,10 +185,11 @@ class GLES20Renderer implements GLSurfaceView.Renderer {
         long time = SystemClock.uptimeMillis() % 10000L;
         float angleInDegrees = (360.0f / 10000.0f) * ((int) time);
         Matrix.setIdentityM(mModelMatrix, 0);
+        Matrix.translateM(mModelMatrix, 0, 0, 0, 0);
         Matrix.rotateM(mModelMatrix, 0, angleInDegrees, 1.0f, 1.0f, 1.0f);
         //drawTriangle(mVerticesBuffer);
         //cube.draw(mPositionHandle, mMVPMatrixHandle, mMVPMatrix, mViewMatrix, mModelMatrix, mProjectionMatrix);
-        mesh.draw(mPositionHandle, mMVPMatrixHandle, mMVPMatrix, mViewMatrix, mModelMatrix, mProjectionMatrix);
+        mesh.drawWireframe(mPositionHandle, mMVPMatrixHandle, mMVPMatrix, mViewMatrix, mModelMatrix, mProjectionMatrix);
         //GLES20.glDrawElements(GLES20.GL_TRIANGLES, 7, GLES20.GL_FLOAT, mVerticesBuffer);
     }
 
