@@ -4,23 +4,21 @@ import android.app.Activity;
 import android.app.ActivityManager;
 import android.content.Context;
 import android.content.pm.ConfigurationInfo;
-import android.content.res.AssetManager;
+import android.graphics.Point;
 import android.opengl.GLES20;
 import android.opengl.GLSurfaceView;
 import android.opengl.Matrix;
 import android.os.Bundle;
 import android.os.SystemClock;
 import android.util.Log;
+import android.view.Display;
+import android.view.MotionEvent;
 import android.view.Window;
 import android.view.WindowManager;
 
 import org.json.JSONException;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
-import java.nio.FloatBuffer;
+import java.util.HashMap;
 
 import javax.microedition.khronos.egl.EGLConfig;
 import javax.microedition.khronos.opengles.GL10;
@@ -29,17 +27,16 @@ import javax.microedition.khronos.opengles.GL10;
 public class MainActivity extends Activity {
     private GLSurfaceView mGLSurfaceView;
 
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         requestWindowFeature(Window.FEATURE_NO_TITLE);
         getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN, WindowManager.LayoutParams.FLAG_FULLSCREEN);
         if (hasGlEs20()) {
-            mGLSurfaceView = new GLSurfaceView(this);
-            mGLSurfaceView.setEGLContextClientVersion(2);
-            mGLSurfaceView.setPreserveEGLContextOnPause(true);
-            mGLSurfaceView.setRenderer(new GLES20Renderer(this));
+            mGLSurfaceView = new MySurfaceView(this);
+            //mGLSurfaceView = new GLSurfaceView(this);
+
+            //mGLSurfaceView.setRenderer(new GLES20Renderer(this));
         } else return;
         setContentView(mGLSurfaceView);
     }
@@ -63,50 +60,77 @@ public class MainActivity extends Activity {
     }
 }
 
+class MySurfaceView extends GLSurfaceView {
+    private GLES20Renderer renderer;
+    private Context context;
+    int width, height;
+
+    public MySurfaceView(Context context) {
+        super(context);
+        setEGLContextClientVersion(2);
+        setPreserveEGLContextOnPause(true);
+        setRenderer(renderer = new GLES20Renderer(context));
+        this.context = context;
+
+        WindowManager wm = (WindowManager)context.getSystemService(Context.WINDOW_SERVICE);
+        Display display = wm.getDefaultDisplay();
+        Point size = new Point();
+        display.getSize(size);
+        width = size.x;
+        height = size.y;
+    }
+
+    @Override
+    public boolean onTouchEvent(MotionEvent event) {
+        //Log.i("X, Y: ", event.getX() + ", " + event.getY());
+        //Log.i("action: ", Integer.toString(event.getAction()));
+        float x = event.getX();
+        float y = event.getY();
+        float value = 0.01f;
+        if (x > width / 2) {
+            if (x < width / 2 + 200)
+                renderer.camera.rotateLeft(value);
+            else if (x > width - 200)
+                renderer.camera.rotateRight(value);
+            else if (y < 200)
+                renderer.camera.rotateDown(value);
+            else if (y > height - 200)
+                renderer.camera.rotateUp(value);
+            else
+                renderer.camera.moveDown(value);
+        } else {
+            if (x < 200)
+                renderer.camera.moveLeft(value);
+            else if (x > width / 2 - 200)
+                renderer.camera.moveRight(value);
+            else if (y < 200)
+                renderer.camera.moveForward(value);
+            else if (y > height - 200)
+                renderer.camera.moveBackward(value);
+            else
+                renderer.camera.moveUp(value);
+        }
+        return true;
+    }
+}
+
 class GLES20Renderer implements GLSurfaceView.Renderer {
     private final Context context;
-    private final FloatBuffer mVerticesBuffer;
     private float[] mViewMatrix = new float[16];
-    private float[] mModelMatrix = new float[16];
     private float[] mProjectionMatrix = new float[16];
-    private float[] mMVPMatrix = new float[16];
 
-    private int mMVPMatrixHandle;
-    private int mPositionHandle;
-    private int mColorHandle;
+    private HashMap<String, Integer> handles = new HashMap<String, Integer>();
+    public Camera camera;
     private Cube cube;
     private Mesh mesh;
 
-
-    /** How many bytes per float. */
-    private final int mBytesPerFloat = 4;
-
-    /** How many elements per vertex. */
-    private final int mStrideBytes = 7 * mBytesPerFloat;
-
-    /** Offset of the position data. */
-    private final int mPositionOffset = 0;
-
-    /** Size of the position data in elements. */
-    private final int mPositionDataSize = 3;
-
-    /** Offset of the color data. */
-    private final int mColorOffset = 3;
-
-    /** Size of the color data in elements. */
-    private final int mColorDataSize = 4;
-
     public GLES20Renderer(Context context) {
         this.context = context;
-        final float verticesData[] = {
-                -0.5f, -0.25f, 0.0f,
-                1.0f, 0.0f, 0.0f, 1.0f
-        };
-        mVerticesBuffer = ByteBuffer.allocateDirect(verticesData.length * 4).order(ByteOrder.nativeOrder()).asFloatBuffer();
-        mVerticesBuffer.put(verticesData).position(0);
-        cube = new Cube(0.1f, 0.1f, 0.1f);
+        camera = new Camera(new float[]{0.0f, 0.0f, 1.5f}, new float[]{0.0f, 0.0f, -5.0f}, new float[]{0.0f, 1.0f, 0.0f});
+        cube = new Cube(1, 1, 1);
         try {
-            mesh = JsonModelLoader.load(context, "model.jm");
+            mesh = JsonModelLoader.load(context, "autism_model.jm");
+            mesh.loadBitmap(AssetsLoader.loadBitmap(context, "autism_texture.jpg"));
         } catch (JSONException e) {
             Log.i("Could not load JsonModel: ", e.getMessage());
         }
@@ -115,11 +139,11 @@ class GLES20Renderer implements GLSurfaceView.Renderer {
     @Override
     public void onSurfaceCreated(GL10 unused, EGLConfig config) {
         GLES20.glClearColor(0.5f, 0.5f, 0.5f, 0.5f);
-        Matrix.setLookAtM(mViewMatrix, 0, 0.0f, 0.0f, 1.5f, 0.0f, 0.0f, -5.0f, 0.0f, 1.0f, 0.0f);
+        //Matrix.setLookAtM(mViewMatrix, 0, 0.0f, 0.0f, 1.5f, 0.0f, 0.0f, -5.0f, 0.0f, 1.0f, 0.0f);
 
         //Matrix.setLookAtM(mViewMatrix, 0, 10, 10, 10, 0, 0, 0, 0, 1, 0);
-        final String vertexShader = AssetsLoader.loadAsset(context, "simple_shader.vs");
-        final String fragmentShader = AssetsLoader.loadAsset(context, "simple_shader.fs");
+        final String vertexShader = AssetsLoader.loadString(context, "simple_shader.vs");
+        final String fragmentShader = AssetsLoader.loadString(context, "simple_shader.fs");
 
         // Loading vertex shader
         int vertexShaderHandle = GLES20.glCreateShader(GLES20.GL_VERTEX_SHADER);
@@ -153,6 +177,7 @@ class GLES20Renderer implements GLSurfaceView.Renderer {
         GLES20.glAttachShader(programHandle, fragmentShaderHandle);
         GLES20.glBindAttribLocation(programHandle, 0, "a_Position");
         GLES20.glBindAttribLocation(programHandle, 1, "a_Color");
+        GLES20.glBindAttribLocation(programHandle, 2, "a_TexCoordinate");
         GLES20.glLinkProgram(programHandle);
         final int[] linkStatus = new int[1];
         GLES20.glGetProgramiv(programHandle, GLES20.GL_LINK_STATUS, linkStatus, 0);
@@ -160,9 +185,11 @@ class GLES20Renderer implements GLSurfaceView.Renderer {
             throw new RuntimeException("Failed to create shader program: " + GLES20.glGetShaderInfoLog(programHandle));
         }
 
-        mMVPMatrixHandle = GLES20.glGetUniformLocation(programHandle, "u_MVPMatrix");
-        mPositionHandle = GLES20.glGetAttribLocation(programHandle, "a_Position");
-        mColorHandle = GLES20.glGetAttribLocation(programHandle, "a_Color");
+        handles.put("u_MVPMatrix", GLES20.glGetUniformLocation(programHandle, "u_MVPMatrix"));
+        handles.put("u_Texture", GLES20.glGetUniformLocation(programHandle, "u_Texture"));
+        handles.put("a_Position", GLES20.glGetAttribLocation(programHandle, "a_Position"));
+        handles.put("a_Color", GLES20.glGetAttribLocation(programHandle, "a_Color"));
+        handles.put("a_TexCoordinate", GLES20.glGetAttribLocation(programHandle, "a_TexCoordinate"));
         GLES20.glUseProgram(programHandle);
     }
 
@@ -182,42 +209,17 @@ class GLES20Renderer implements GLSurfaceView.Renderer {
     @Override
     public void onDrawFrame(GL10 unused) {
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT | GLES20.GL_DEPTH_BUFFER_BIT);
+        Matrix.setLookAtM(mViewMatrix, 0,
+                camera.position[0], camera.position[1], camera.position[2],
+                camera.target[0], camera.target[1], camera.target[2],
+                camera.up[0], camera.up[1], camera.up[2]);
         long time = SystemClock.uptimeMillis() % 10000L;
         float angleInDegrees = (360.0f / 10000.0f) * ((int) time);
-        Matrix.setIdentityM(mModelMatrix, 0);
-        Matrix.translateM(mModelMatrix, 0, 0, 0, 0);
-        Matrix.rotateM(mModelMatrix, 0, angleInDegrees, 1.0f, 1.0f, 1.0f);
-        //drawTriangle(mVerticesBuffer);
-        //cube.draw(mPositionHandle, mMVPMatrixHandle, mMVPMatrix, mViewMatrix, mModelMatrix, mProjectionMatrix);
-        mesh.drawWireframe(mPositionHandle, mMVPMatrixHandle, mMVPMatrix, mViewMatrix, mModelMatrix, mProjectionMatrix);
-        //GLES20.glDrawElements(GLES20.GL_TRIANGLES, 7, GLES20.GL_FLOAT, mVerticesBuffer);
-    }
-
-    private void drawTriangle(final FloatBuffer aTriangleBuffer)
-    {
-        // Pass in the position information
-        aTriangleBuffer.position(mPositionOffset);
-        GLES20.glVertexAttribPointer(mPositionHandle, mPositionDataSize, GLES20.GL_FLOAT, false,
-                mStrideBytes, aTriangleBuffer);
-
-        GLES20.glEnableVertexAttribArray(mPositionHandle);
-
-        // Pass in the color information
-        aTriangleBuffer.position(mColorOffset);
-        GLES20.glVertexAttribPointer(mColorHandle, mColorDataSize, GLES20.GL_FLOAT, false,
-                mStrideBytes, aTriangleBuffer);
-
-        GLES20.glEnableVertexAttribArray(mColorHandle);
-
-        // This multiplies the view matrix by the model matrix, and stores the result in the MVP matrix
-        // (which currently contains model * view).
-        Matrix.multiplyMM(mMVPMatrix, 0, mViewMatrix, 0, mModelMatrix, 0);
-
-        // This multiplies the modelview matrix by the projection matrix, and stores the result in the MVP matrix
-        // (which now contains model * view * projection).
-        Matrix.multiplyMM(mMVPMatrix, 0, mProjectionMatrix, 0, mMVPMatrix, 0);
-
-        GLES20.glUniformMatrix4fv(mMVPMatrixHandle, 1, false, mMVPMatrix, 0);
-        GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, 3);
+        mesh.draw(handles, mViewMatrix, mProjectionMatrix);
+        mesh.position = new float[]{0.0f, 0.0f, 0.0f};
+        mesh.rotation[0] += angleInDegrees / 100;
+        mesh.rotation[1] += angleInDegrees / 100;
+        mesh.rotation[2] += angleInDegrees / 100;
+        mesh.scaling[0] = mesh.scaling[1] = mesh.scaling[2] = 0.3f;
     }
 }

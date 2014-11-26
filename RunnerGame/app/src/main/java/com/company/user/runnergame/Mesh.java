@@ -9,6 +9,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
 import java.nio.ShortBuffer;
+import java.util.HashMap;
 
 import javax.microedition.khronos.opengles.GL10;
 
@@ -17,15 +18,18 @@ import javax.microedition.khronos.opengles.GL10;
  */
 public class Mesh {
     private String name;
-    private float[] position;
-    private float[] rotation;
-    private float[] scaling;
+    public float[] position = {0.0f, 0.0f, 0.0f};
+    public float[] rotation = {0.0f, 0.0f, 0.0f};
+    public float[] scaling = {1.0f, 1.0f, 1.0f};
 
     public FloatBuffer verticesBuffer = null;
     public FloatBuffer normalsBuffer = null;
     public ShortBuffer indicesBuffer = null;
     public FloatBuffer textureBuffer = null;
     public ShortBuffer linesBuffer = null;
+
+    private float[] mMVPMatrix = new float[16];
+    private float[] mModelMatrix = new float[16];
 
     public int lineIndicesCount = -1;
     public int indicesCount = -1;
@@ -47,24 +51,29 @@ public class Mesh {
         setIndices(indices);
     }
 
+    public Mesh() {
+
+    }
+
     public void loadBitmap(Bitmap bitmap) {
         this.bitmap = bitmap;
         loadTexture = true;
     }
 
-    private void loadTexture(GL10 gl) {
+    private void loadTexture() {
         int[] textures = new int[1];
-        gl.glGenTextures(1, textures, 0);
+        GLES20.glGenTextures(1, textures, 0);
         textureId = textures[0];
-        gl.glBindTexture(GL10.GL_TEXTURE_2D, textureId);
+        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, textureId);
 
-        gl.glTexParameterf(GL10.GL_TEXTURE_2D, GL10.GL_TEXTURE_MIN_FILTER, GL10.GL_NEAREST);
-        gl.glTexParameterf(GL10.GL_TEXTURE_2D, GL10.GL_TEXTURE_MAG_FILTER, GL10.GL_NEAREST);
+        GLES20.glTexParameterf(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_NEAREST);
+        GLES20.glTexParameterf(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_NEAREST);
 
         //gl.glTexParameterf(GL10.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_S, GL10.GL_CLAMP_TO_EDGE);
         //gl.glTexParameterf(GL10.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_T, GL10.GL_REPEAT);
 
-        GLUtils.texImage2D(GL10.GL_TEXTURE_2D, 0, bitmap, 0);
+        GLUtils.texImage2D(GLES20.GL_TEXTURE_2D, 0, bitmap, 0);
+
     }
 
     protected void setVertices(float[] vertices) {
@@ -183,20 +192,54 @@ public class Mesh {
 //        gl.glDisable(GL10.GL_CULL_FACE);
 //    }
 
-    public void draw(int mPositionHandle, int mMVPMatrixHandle, float[] mMVPMatrix, float[] mViewMatrix, float[]mModelMatrix, float[] mProjectionMatrix) {
-        GLES20.glEnableVertexAttribArray(mPositionHandle);
-        GLES20.glVertexAttribPointer(mPositionHandle, 3, GLES20.GL_FLOAT, false,
+    public void draw(HashMap<String, Integer> handles, float[] mViewMatrix, float[] mProjectionMatrix) {
+        GLES20.glFrontFace(GLES20.GL_CCW);
+        GLES20.glEnable(GLES20.GL_CULL_FACE);
+        GLES20.glCullFace(GLES20.GL_FRONT);
+
+        GLES20.glEnableVertexAttribArray(handles.get("a_Position"));
+        GLES20.glVertexAttribPointer(handles.get("a_Position"), 3, GLES20.GL_FLOAT, false,
                 12, verticesBuffer);
+        if (loadTexture) {
+            loadTexture();
+            loadTexture = false;
+        }
+
+        GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
+        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, textureId);
+        GLES20.glUniform1i(handles.get("u_Texture"), 0);
+        GLES20.glEnable(GLES20.GL_TEXTURE_2D);
+        GLES20.glEnableVertexAttribArray(handles.get("a_TexCoordinate"));
+        GLES20.glVertexAttribPointer(handles.get("a_TexCoordinate"), 2, GLES20.GL_FLOAT, false, 8, textureBuffer);
+
+
+        Matrix.setIdentityM(mModelMatrix, 0);
+        Matrix.translateM(mModelMatrix, 0, position[0], position[1], position[2]);
+        Matrix.rotateM(mModelMatrix, 0, rotation[0], 1, 0, 0);
+        Matrix.rotateM(mModelMatrix, 0, rotation[1], 0, 1, 0);
+        Matrix.rotateM(mModelMatrix, 0, rotation[2], 0, 0, 1);
+        Matrix.scaleM(mModelMatrix, 0, scaling[0], scaling[1], scaling[2]);
+
         Matrix.multiplyMM(mMVPMatrix, 0, mViewMatrix, 0, mModelMatrix, 0);
         Matrix.multiplyMM(mMVPMatrix, 0, mProjectionMatrix, 0, mMVPMatrix, 0);
-        GLES20.glUniformMatrix4fv(mMVPMatrixHandle, 1, false, mMVPMatrix, 0);
+        GLES20.glUniformMatrix4fv(handles.get("u_MVPMatrix"), 1, false, mMVPMatrix, 0);
         GLES20.glDrawElements(GLES20.GL_TRIANGLES, indicesCount, GLES20.GL_UNSIGNED_SHORT, indicesBuffer);
+
+        //GLES20.glDisableVertexAttribArray(mPositionHandle);
     }
 
-    public void drawWireframe(int mPositionHandle, int mMVPMatrixHandle, float[] mMVPMatrix, float[] mViewMatrix, float[]mModelMatrix, float[] mProjectionMatrix) {
+    public void drawWireframe(int mPositionHandle, int mMVPMatrixHandle, float[] mViewMatrix, float[] mProjectionMatrix) {
         GLES20.glEnableVertexAttribArray(mPositionHandle);
         GLES20.glVertexAttribPointer(mPositionHandle, 3, GLES20.GL_FLOAT, false,
                 12, verticesBuffer);
+
+        Matrix.setIdentityM(mModelMatrix, 0);
+        Matrix.translateM(mModelMatrix, 0, position[0], position[1], position[2]);
+        Matrix.rotateM(mModelMatrix, 0, rotation[0], 1, 0, 0);
+        Matrix.rotateM(mModelMatrix, 0, rotation[1], 0, 1, 0);
+        Matrix.rotateM(mModelMatrix, 0, rotation[2], 0, 0, 1);
+        Matrix.scaleM(mModelMatrix, 0, scaling[0], scaling[1], scaling[2]);
+
         Matrix.multiplyMM(mMVPMatrix, 0, mViewMatrix, 0, mModelMatrix, 0);
         Matrix.multiplyMM(mMVPMatrix, 0, mProjectionMatrix, 0, mMVPMatrix, 0);
         GLES20.glUniformMatrix4fv(mMVPMatrixHandle, 1, false, mMVPMatrix, 0);

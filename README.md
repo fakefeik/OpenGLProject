@@ -11,6 +11,8 @@ TODO:
 * Make custom model loading
 * Implement shading
 * Add textures
+* Add fonts and UI
+* Implement physics
 * ...
 * Make a game
 * Profit!

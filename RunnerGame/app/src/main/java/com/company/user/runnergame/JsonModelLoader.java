@@ -11,7 +11,7 @@ import org.json.JSONObject;
  */
 public class JsonModelLoader {
     public static Mesh load(Context context, String filename) throws JSONException {
-        JSONObject object = new JSONObject(AssetsLoader.loadAsset(context, filename));
+        JSONObject object = new JSONObject(AssetsLoader.loadString(context, filename));
         JSONArray verticesJson = object.getJSONArray("vertices");
         JSONArray normalsJson = object.getJSONArray("normals");
         JSONArray texturesJson = object.getJSONArray("textures");
